@@ -46,7 +46,7 @@ import { formatRoverDuration, playRoverCue, ROVER_VEHICLES } from '../data/rover
 import { formatSatDuration, playSatCue, SATELLITE_CRAFTS } from '../data/satelliteMissions';
 import { MARS_LOCATIONS } from '../data/locations';
 import { SCIENTIFIC_POIS } from '../data/geologyAndEnvironment';
-import { createMarsImageryProvider } from '../services/marsMapService';
+import { createMarsImageryProvider, resolveNasaModelUrl } from '../services/marsMapService';
 
 // Match NASA Mars Trek EQ & NASA MMGIS datum: Mars_2000_Sphere_IAU (R = 3,396,190 m)
 // so planetocentric coordinates, WMTS tiles, and MMGIS rover traverses align with zero latitude offset.
@@ -631,6 +631,16 @@ export default function MarsGlobe({
     }
     viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#030406');
 
+    const isCoarseOrNarrow =
+      typeof window !== 'undefined' &&
+      (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    // Cap effective pixel density on high-DPR Android/mobile GPUs for smooth 60fps & WebGL stability
+    if (isCoarseOrNarrow && dpr > 1.5) {
+      viewer.resolutionScale = Math.min(dpr, 1.5) / dpr;
+    }
+    viewer.scene.globe.maximumScreenSpaceError = isCoarseOrNarrow ? 2.6 : 2.0;
+
     const fallbackUrl = createFallbackMarsTexture();
     const fallbackProvider = new Cesium.SingleTileImageryProvider({
       url: fallbackUrl,
@@ -1000,10 +1010,26 @@ export default function MarsGlobe({
     updateCamTelemetry();
     const removeCamListener = viewer.camera.changed.addEventListener(updateCamTelemetry);
 
+    const applyResponsiveFov = () => {
+      if (viewer.isDestroyed()) return;
+      if (callbackRefs.current.flightSim?.active) return;
+      if (viewer.camera.frustum instanceof Cesium.PerspectiveFrustum) {
+        const w = viewer.scene.canvas.clientWidth || window.innerWidth || 800;
+        const h = viewer.scene.canvas.clientHeight || window.innerHeight || 600;
+        const aspect = w / Math.max(1, h);
+        // Widen vertical FOV slightly on tall portrait phones so horizontal Mars & orbital framing aren't cropped
+        const targetDeg = aspect < 0.78 ? 72 : 60;
+        viewer.camera.frustum.fov = Cesium.Math.toRadians(targetDeg);
+      }
+    };
+    applyResponsiveFov();
+    window.addEventListener('resize', applyResponsiveFov);
+
     viewerRef.current = viewer;
 
     return () => {
       healthAbort.abort();
+      window.removeEventListener('resize', applyResponsiveFov);
       removeCamListener();
       removePreUpdate();
       removePostUpdate();
@@ -1407,26 +1433,72 @@ export default function MarsGlobe({
           );
         }, false) as unknown as Cesium.Property;
 
+        // Procedural winged-orbiter silhouette visible at medium/global distances on all devices
+        ds.entities.add({
+          polyline: {
+            positions: new Cesium.CallbackProperty(() => {
+              const st = computeOrbState(performance.now());
+              const center = Cesium.Cartesian3.fromDegrees(st.lonDeg, st.latDeg, alt, MARS_ELLIPSOID);
+              const enu = Cesium.Transforms.eastNorthUpToFixedFrame(center, MARS_ELLIPSOID);
+              const rot = Cesium.Matrix4.getMatrix3(enu, new Cesium.Matrix3());
+              const hR = Cesium.Math.toRadians(st.hdg);
+              const fwdL = new Cesium.Cartesian3(Math.sin(hR), Math.cos(hR), 0);
+              const rightL = new Cesium.Cartesian3(Math.cos(hR), -Math.sin(hR), 0);
+              const fwdW = safeNormalize(
+                Cesium.Matrix3.multiplyByVector(rot, fwdL, new Cesium.Cartesian3()),
+                Cesium.Cartesian3.UNIT_Y
+              );
+              const rightW = safeNormalize(
+                Cesium.Matrix3.multiplyByVector(rot, rightL, new Cesium.Cartesian3()),
+                Cesium.Cartesian3.UNIT_X
+              );
+              const wingHalfSpanM = 95000;
+              const noseLenM = 52000;
+              const pt = (rx: number, fy: number) => {
+                const out = Cesium.Cartesian3.clone(center);
+                Cesium.Cartesian3.add(out, Cesium.Cartesian3.multiplyByScalar(rightW, rx, new Cesium.Cartesian3()), out);
+                Cesium.Cartesian3.add(out, Cesium.Cartesian3.multiplyByScalar(fwdW, fy, new Cesium.Cartesian3()), out);
+                return out;
+              };
+              return [
+                pt(-wingHalfSpanM, 0),
+                pt(wingHalfSpanM, 0),
+                center,
+                pt(0, noseLenM),
+                pt(-wingHalfSpanM * 0.45, -noseLenM * 0.45),
+                pt(wingHalfSpanM * 0.45, -noseLenM * 0.45),
+                pt(0, noseLenM),
+              ];
+            }, false) as unknown as Cesium.Property,
+            width: 2.4,
+            material: Cesium.Color.fromCssColorString('#f8fafc').withAlpha(0.88),
+            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(420000, 30000000),
+          },
+        });
+
         ds.entities.add({
           position: orbPosProp,
           orientation: orbOrientProp,
           model:
             settings.showNasaModels && mission.modelKey
               ? {
-                  uri: `/api/models/${mission.modelKey}.glb`,
+                  uri: resolveNasaModelUrl(mission.modelKey),
                   minimumPixelSize: 64,
                   maximumScale: 45000,
+                  lightColor: new Cesium.Color(2.8, 2.8, 2.8, 1.0),
+                  imageBasedLightingFactor: new Cesium.Cartesian2(1.0, 1.0),
+                  silhouetteColor: mColor.withAlpha(0.8),
+                  silhouetteSize: 1.4,
+                  shadows: Cesium.ShadowMode.DISABLED,
                 }
               : undefined,
-          point:
-            !settings.showNasaModels || !mission.modelKey
-              ? {
-                  pixelSize: 10,
-                  color: mColor,
-                  outlineColor: Cesium.Color.WHITE,
-                  outlineWidth: 2,
-                }
-              : undefined,
+          point: {
+            pixelSize: settings.showNasaModels && mission.modelKey ? 9 : 11,
+            color: mColor,
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 2,
+            scaleByDistance: new Cesium.NearFarScalar(150000, 1.25, 10000000, 0.78),
+          },
           label: {
             text: `${mission.name} (${Math.round(alt / 1000)} km · LIVE ORBIT)`,
             font: '600 11px "IBM Plex Sans", sans-serif',
@@ -1434,7 +1506,7 @@ export default function MarsGlobe({
             outlineColor: Cesium.Color.BLACK,
             outlineWidth: 3,
             style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-            pixelOffset: new Cesium.Cartesian2(0, -26),
+            pixelOffset: new Cesium.Cartesian2(0, -24),
           },
           properties: {
             kind: 'mission',
@@ -1527,9 +1599,11 @@ export default function MarsGlobe({
           position: craftPos,
           orientation: craftOrientation,
           model: {
-            uri: `/api/models/${mission.modelKey}.glb`,
+            uri: resolveNasaModelUrl(mission.modelKey),
             minimumPixelSize: 54,
             maximumScale: 1600,
+            lightColor: new Cesium.Color(2.4, 2.4, 2.4, 1.0),
+            shadows: Cesium.ShadowMode.DISABLED,
           },
           properties: {
             kind: 'mission',
@@ -1999,9 +2073,19 @@ export default function MarsGlobe({
               false
             ) as unknown as Cesium.Property,
             model: {
-              uri: '/api/models/ingenuity.glb',
+              uri: resolveNasaModelUrl('ingenuity'),
               minimumPixelSize: 68,
               maximumScale: 40,
+              lightColor: new Cesium.Color(2.6, 2.6, 2.6, 1.0),
+              silhouetteColor: Cesium.Color.fromCssColorString('#fb923c').withAlpha(0.75),
+              silhouetteSize: 1.2,
+              shadows: Cesium.ShadowMode.DISABLED,
+            },
+            point: {
+              pixelSize: 8,
+              color: Cesium.Color.fromCssColorString('#fb923c'),
+              outlineColor: Cesium.Color.WHITE,
+              outlineWidth: 1.5,
             },
           });
         } else {
@@ -2074,7 +2158,9 @@ export default function MarsGlobe({
       ds.entities.removeAll();
       viewer.scene.screenSpaceCameraController.enableInputs = true;
       if (viewer.camera.frustum instanceof Cesium.PerspectiveFrustum) {
-        viewer.camera.frustum.fov = Cesium.Math.toRadians(60);
+        const w = viewer.scene.canvas.clientWidth || 800;
+        const h = viewer.scene.canvas.clientHeight || 600;
+        viewer.camera.frustum.fov = Cesium.Math.toRadians(w / Math.max(1, h) < 0.78 ? 72 : 60);
       }
       return;
     }
@@ -3305,19 +3391,21 @@ export default function MarsGlobe({
       ) as unknown as Cesium.PositionProperty,
       model: settings.showNasaModels
         ? {
-            uri: '/api/models/mro.glb',
-            minimumPixelSize: 44,
+            uri: resolveNasaModelUrl('mro'),
+            minimumPixelSize: 48,
             maximumScale: 16000,
+            lightColor: new Cesium.Color(2.6, 2.6, 2.6, 1.0),
+            silhouetteColor: Cesium.Color.fromCssColorString('#22d3ee').withAlpha(0.75),
+            silhouetteSize: 1.3,
+            shadows: Cesium.ShadowMode.DISABLED,
           }
         : undefined,
-      point: !settings.showNasaModels
-        ? {
-            pixelSize: 9,
-            color: Cesium.Color.fromCssColorString('#22d3ee'),
-            outlineColor: Cesium.Color.WHITE,
-            outlineWidth: 2,
-          }
-        : undefined,
+      point: {
+        pixelSize: 9,
+        color: Cesium.Color.fromCssColorString('#22d3ee'),
+        outlineColor: Cesium.Color.WHITE,
+        outlineWidth: 2,
+      },
       label: {
         text: 'MRO RELAY',
         font: '600 10px "JetBrains Mono", monospace',
@@ -3360,9 +3448,19 @@ export default function MarsGlobe({
           false
         ) as unknown as Cesium.Property,
         model: {
-          uri: '/api/models/perseverance.glb',
+          uri: resolveNasaModelUrl('perseverance'),
           minimumPixelSize: 72,
           maximumScale: 18,
+          lightColor: new Cesium.Color(2.5, 2.5, 2.5, 1.0),
+          silhouetteColor: Cesium.Color.fromCssColorString('#22d3ee').withAlpha(0.65),
+          silhouetteSize: 1.2,
+          shadows: Cesium.ShadowMode.DISABLED,
+        },
+        point: {
+          pixelSize: 8,
+          color: Cesium.Color.fromCssColorString('#f59e0b'),
+          outlineColor: Cesium.Color.WHITE,
+          outlineWidth: 1.5,
         },
       });
     } else {
@@ -4198,7 +4296,7 @@ export default function MarsGlobe({
     }
     p.orbitRemainingPts = remPts;
 
-    // Camera tracking modes
+    // Camera tracking modes — framed so spacecraft sits clearly in upper-middle clear space on portrait mobile & desktop
     if (camMode === 'nadir') {
       const camPos = Cesium.Cartesian3.add(
         worldPos,
@@ -4213,31 +4311,48 @@ export default function MarsGlobe({
     } else if (camMode === 'horizon') {
       const camPos = Cesium.Cartesian3.add(
         Cesium.Cartesian3.add(
-          worldPos,
-          Cesium.Cartesian3.multiplyByScalar(worldRight, 260000, new Cesium.Cartesian3()),
+          Cesium.Cartesian3.add(
+            worldPos,
+            Cesium.Cartesian3.multiplyByScalar(worldRight, 54000, new Cesium.Cartesian3()),
+            new Cesium.Cartesian3()
+          ),
+          Cesium.Cartesian3.multiplyByScalar(worldFwd, -22000, new Cesium.Cartesian3()),
           new Cesium.Cartesian3()
         ),
-        Cesium.Cartesian3.multiplyByScalar(worldUp, 75000, new Cesium.Cartesian3()),
+        Cesium.Cartesian3.multiplyByScalar(worldUp, 12000, new Cesium.Cartesian3()),
+        new Cesium.Cartesian3()
+      );
+      const lookTarget = Cesium.Cartesian3.add(
+        Cesium.Cartesian3.add(
+          worldPos,
+          Cesium.Cartesian3.multiplyByScalar(worldFwd, 22000, new Cesium.Cartesian3()),
+          new Cesium.Cartesian3()
+        ),
+        Cesium.Cartesian3.multiplyByScalar(worldUp, -10000, new Cesium.Cartesian3()),
         new Cesium.Cartesian3()
       );
       const lookDir = safeNormalize(
-        Cesium.Cartesian3.subtract(nadirPos, camPos, new Cesium.Cartesian3()),
-        Cesium.Cartesian3.negate(worldUp, new Cesium.Cartesian3())
+        Cesium.Cartesian3.subtract(lookTarget, camPos, new Cesium.Cartesian3()),
+        Cesium.Cartesian3.negate(worldRight, new Cesium.Cartesian3())
       );
       safeSetCameraView(viewer, camPos, lookDir, worldUp);
     } else {
       const camPos = Cesium.Cartesian3.add(
         Cesium.Cartesian3.add(
           worldPos,
-          Cesium.Cartesian3.multiplyByScalar(worldFwd, -125000, new Cesium.Cartesian3()),
+          Cesium.Cartesian3.multiplyByScalar(worldFwd, -58000, new Cesium.Cartesian3()),
           new Cesium.Cartesian3()
         ),
-        Cesium.Cartesian3.multiplyByScalar(worldUp, 52000, new Cesium.Cartesian3()),
+        Cesium.Cartesian3.multiplyByScalar(worldUp, 16000, new Cesium.Cartesian3()),
         new Cesium.Cartesian3()
       );
       const lookTarget = Cesium.Cartesian3.add(
-        nadirPos,
-        Cesium.Cartesian3.multiplyByScalar(worldFwd, 180000, new Cesium.Cartesian3()),
+        Cesium.Cartesian3.add(
+          worldPos,
+          Cesium.Cartesian3.multiplyByScalar(worldFwd, 65000, new Cesium.Cartesian3()),
+          new Cesium.Cartesian3()
+        ),
+        Cesium.Cartesian3.multiplyByScalar(worldUp, -34000, new Cesium.Cartesian3()),
         new Cesium.Cartesian3()
       );
       const lookDir = safeNormalize(
@@ -4505,9 +4620,136 @@ export default function MarsGlobe({
       },
     });
 
-    // 3D NASA Satellite Model
+    // Helper to place procedural 3D satellite components in orbital local coordinates (right, fwd, up)
+    const satLocalPt = (rx: number, fy: number, uz: number) => {
+      const p = satPhysRef.current;
+      const out = Cesium.Cartesian3.clone(p.worldPos);
+      Cesium.Cartesian3.add(
+        out,
+        Cesium.Cartesian3.multiplyByScalar(p.basisRight, rx, new Cesium.Cartesian3()),
+        out
+      );
+      Cesium.Cartesian3.add(
+        out,
+        Cesium.Cartesian3.multiplyByScalar(p.basisFwd, fy, new Cesium.Cartesian3()),
+        out
+      );
+      Cesium.Cartesian3.add(
+        out,
+        Cesium.Cartesian3.multiplyByScalar(p.basisUp, uz, new Cesium.Cartesian3()),
+        out
+      );
+      return out;
+    };
+
+    const showSatMesh = satelliteSim.cameraMode !== 'nadir';
+
+    // Procedural 3D Orbital Spacecraft (Gold MLI Bus + Dual Solar Wings + HGA Dish + Glowing Beacon)
+    // Ensures spacecraft is crisp & immediately visible on Frame 1 on mobile/Vercel alongside NASA GLB
+    ds.entities.add({
+      id: 'sat-proc-bus',
+      show: showSatMesh,
+      polygon: {
+        hierarchy: new Cesium.CallbackProperty(
+          () =>
+            new Cesium.PolygonHierarchy([
+              satLocalPt(-750, 950, 260),
+              satLocalPt(750, 950, 260),
+              satLocalPt(900, 0, 260),
+              satLocalPt(750, -950, 260),
+              satLocalPt(-750, -950, 260),
+              satLocalPt(-900, 0, 260),
+            ]),
+          false
+        ) as unknown as Cesium.Property,
+        material: Cesium.Color.fromCssColorString('#f59e0b').withAlpha(0.92),
+        outline: true,
+        outlineColor: Cesium.Color.fromCssColorString('#fef08a'),
+        outlineWidth: 2,
+        perPositionHeight: true,
+      },
+    });
+
+    ds.entities.add({
+      id: 'sat-proc-wing-left',
+      show: showSatMesh,
+      polygon: {
+        hierarchy: new Cesium.CallbackProperty(
+          () =>
+            new Cesium.PolygonHierarchy([
+              satLocalPt(-1150, 560, 120),
+              satLocalPt(-4350, 560, 120),
+              satLocalPt(-4350, -560, 120),
+              satLocalPt(-1150, -560, 120),
+            ]),
+          false
+        ) as unknown as Cesium.Property,
+        material: Cesium.Color.fromCssColorString('#0284c7').withAlpha(0.84),
+        outline: true,
+        outlineColor: Cesium.Color.fromCssColorString('#7dd3fc'),
+        outlineWidth: 2,
+        perPositionHeight: true,
+      },
+    });
+
+    ds.entities.add({
+      id: 'sat-proc-wing-right',
+      show: showSatMesh,
+      polygon: {
+        hierarchy: new Cesium.CallbackProperty(
+          () =>
+            new Cesium.PolygonHierarchy([
+              satLocalPt(1150, 560, 120),
+              satLocalPt(4350, 560, 120),
+              satLocalPt(4350, -560, 120),
+              satLocalPt(1150, -560, 120),
+            ]),
+          false
+        ) as unknown as Cesium.Property,
+        material: Cesium.Color.fromCssColorString('#0284c7').withAlpha(0.84),
+        outline: true,
+        outlineColor: Cesium.Color.fromCssColorString('#7dd3fc'),
+        outlineWidth: 2,
+        perPositionHeight: true,
+      },
+    });
+
+    ds.entities.add({
+      id: 'sat-proc-truss',
+      show: showSatMesh,
+      polyline: {
+        positions: new Cesium.CallbackProperty(
+          () => [
+            // Cross-boom through both solar arrays
+            satLocalPt(-4350, 0, 120),
+            satLocalPt(4350, 0, 120),
+            satLocalPt(0, 0, 120),
+            // High-gain parabolic dish mast upward
+            satLocalPt(0, -180, 1250),
+            satLocalPt(-650, -180, 1520),
+            satLocalPt(0, 470, 1520),
+            satLocalPt(650, -180, 1520),
+            satLocalPt(0, -830, 1520),
+            satLocalPt(-650, -180, 1520),
+            satLocalPt(0, -180, 1250),
+            // Forward laser/optical payload boom
+            satLocalPt(0, 0, 120),
+            satLocalPt(0, 1350, -250),
+            // Nadir optic barrel
+            satLocalPt(0, 0, 120),
+            satLocalPt(0, 0, -900),
+          ],
+          false
+        ) as unknown as Cesium.Property,
+        width: 2.5,
+        material: Cesium.Color.fromCssColorString('#f8fafc').withAlpha(0.95),
+      },
+    });
+
+    // 3D NASA Satellite Model + High-Contrast Orbital Core Beacon
     ds.entities.add({
       id: 'sat-player-model',
+      show: showSatMesh,
       position: new Cesium.CallbackProperty(
         () => satPhysRef.current.worldPos,
         false
@@ -4518,8 +4760,28 @@ export default function MarsGlobe({
       ) as unknown as Cesium.Property,
       model: {
         uri: spec.modelUri,
-        minimumPixelSize: 80,
-        maximumScale: 42000,
+        minimumPixelSize: 88,
+        maximumScale: 14000,
+        lightColor: new Cesium.Color(2.8, 2.8, 2.8, 1.0),
+        imageBasedLightingFactor: new Cesium.Cartesian2(1.0, 1.0),
+        silhouetteColor: Cesium.Color.fromCssColorString(spec.accentColor).withAlpha(0.85),
+        silhouetteSize: 1.5,
+        shadows: Cesium.ShadowMode.DISABLED,
+      },
+      point: {
+        pixelSize: 11,
+        color: Cesium.Color.fromCssColorString(spec.accentColor),
+        outlineColor: Cesium.Color.WHITE,
+        outlineWidth: 2,
+      },
+      label: {
+        text: spec.shortName,
+        font: '600 11px "JetBrains Mono", monospace',
+        fillColor: Cesium.Color.fromCssColorString('#e0f2fe'),
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 3,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        pixelOffset: new Cesium.Cartesian2(0, -26),
       },
     });
 
@@ -4572,10 +4834,25 @@ export default function MarsGlobe({
     pickMode,
   ]);
 
-  // Satellite Transit Simulator: Update camera immediately on view toggle
+  // Satellite Transit Simulator: Update camera & craft visibility immediately on view toggle
   useEffect(() => {
     const viewer = viewerRef.current;
-    if (!viewer || !satelliteSim?.active || satelliteSim.status === 'setup') return;
+    const ds = dataSourceRefs.current?.satSim;
+    if (!viewer || !satelliteSim?.active) return;
+    if (ds) {
+      const showCraft = satelliteSim.cameraMode !== 'nadir';
+      [
+        'sat-proc-bus',
+        'sat-proc-wing-left',
+        'sat-proc-wing-right',
+        'sat-proc-truss',
+        'sat-player-model',
+      ].forEach((eid) => {
+        const ent = ds.entities.getById(eid);
+        if (ent) ent.show = showCraft;
+      });
+    }
+    if (satelliteSim.status === 'setup') return;
     evaluateSatFrame(viewer, satelliteSim.craftId, satelliteSim.cameraMode, satPhysRef.current.progress);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [satelliteSim?.active, satelliteSim?.cameraMode, satelliteSim?.status]);

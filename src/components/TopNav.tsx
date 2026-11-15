@@ -196,9 +196,9 @@ export default function TopNav({
       {/* Row 1: Survival Field Manual Command Bar */}
       <div
         ref={menuRef}
-        className="flex h-7 sm:h-6 items-center justify-between border-b border-slate-800/90 bg-[#080B11] px-2 sm:px-3 text-[11px] text-slate-400"
+        className="flex min-h-7 sm:h-6 flex-wrap items-center justify-between border-b border-slate-800/90 bg-[#080B11] px-2 py-0.5 sm:px-3 sm:py-0 text-[11px] text-slate-400"
       >
-        <div className="flex items-center gap-0.5">
+        <div className="flex flex-wrap items-center gap-0.5">
           {(
             [
               ['file', 'Briefings'],
@@ -572,7 +572,7 @@ export default function TopNav({
             </form>
 
             {openResults && (
-              <div className="fixed sm:absolute top-20 sm:top-10 left-2 sm:left-0 z-50 max-h-80 w-[calc(100vw-1rem)] sm:w-80 overflow-y-auto rounded-lg border border-amber-500/25 bg-[#0B0F17] py-1.5 shadow-2xl">
+              <div className="fixed sm:absolute top-24 sm:top-10 left-2 sm:left-0 z-50 max-h-80 w-[calc(100vw-1rem)] sm:w-80 overflow-y-auto rounded-lg border border-amber-500/25 bg-[#0B0F17] py-1.5 shadow-2xl">
                 {parsedCoord && (
                   <button
                     type="button"

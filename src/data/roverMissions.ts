@@ -4,6 +4,7 @@ import {
   RoverVehicleId,
   RoverVehicleSpec,
 } from '../types/mars';
+import { resolveNasaModelUrl } from '../services/marsMapService';
 
 export const ROVER_VEHICLES: Record<RoverVehicleId, RoverVehicleSpec> = {
   pressurized_sev: {
@@ -39,7 +40,7 @@ export const ROVER_VEHICLES: Record<RoverVehicleId, RoverVehicleSpec> = {
     chaseDistanceM: 28,
     chaseHeightM: 10,
     cabinEyeHeightM: 2.6,
-    modelUri: '/api/models/perseverance.glb',
+    modelUri: resolveNasaModelUrl('perseverance'),
   },
 };
 

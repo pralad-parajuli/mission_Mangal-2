@@ -579,8 +579,8 @@ export default function RoverSimulatorHUD({
               className="flex h-7 items-center gap-1 rounded-lg border border-white/12 bg-white/5 px-2 text-[11px] text-slate-200 hover:bg-white/12 whitespace-nowrap sm:px-2.5"
               title="Cycle Camera View (C)"
             >
-              <Eye className="h-3 w-3" />
-              <span className="hidden sm:inline">
+              <Eye className="h-3 w-3 shrink-0" />
+              <span>
                 {cameraMode === 'chase'
                   ? 'Chase'
                   : cameraMode === 'cabin'
@@ -674,7 +674,7 @@ export default function RoverSimulatorHUD({
       </div>
 
       {/* Top-Center Compass & Destination Bearing Tape */}
-      <div className="mx-auto mt-2.5 flex w-64 flex-col items-center">
+      <div className="mx-auto mt-1.5 flex w-64 flex-col items-center sm:mt-2.5">
         <div className="relative h-7 w-full overflow-hidden rounded-lg border border-white/12 bg-[#0B0E17]/75 backdrop-blur-sm">
           {COMPASS_MARKS.map((mark) => {
             const diff = wrapSignedAngleDeg(mark.deg - hud.headingDeg);
@@ -1115,8 +1115,8 @@ export default function RoverSimulatorHUD({
 
       {/* Paused or Arrived Modal */}
       {(status === 'paused' || status === 'arrived') && (
-        <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl border border-white/15 bg-[#0B0E17]/95 p-6 text-center shadow-2xl">
+        <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-black/55 p-3 backdrop-blur-sm sm:p-4">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border border-white/15 bg-[#0B0E17]/95 p-5 text-center shadow-2xl sm:p-6">
             {status === 'paused' && (
               <>
                 <div className="text-[11px] font-medium tracking-wider text-cyan-400 uppercase">

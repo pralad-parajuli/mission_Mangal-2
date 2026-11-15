@@ -4,6 +4,7 @@ import {
   FlightCraftId,
   FlightCraftSpec,
 } from '../types/mars';
+import { resolveNasaModelUrl } from '../services/marsMapService';
 
 export const FLIGHT_CRAFTS: Record<FlightCraftId, FlightCraftSpec> = {
   ingenuity_scout: {
@@ -22,7 +23,7 @@ export const FLIGHT_CRAFTS: Record<FlightCraftId, FlightCraftSpec> = {
     maxBankDeg: 45,
     chaseDistanceM: 36,
     chaseHeightM: 9,
-    modelUri: '/api/models/ingenuity.glb',
+    modelUri: resolveNasaModelUrl('ingenuity'),
   },
   ares_wing: {
     id: 'ares_wing',

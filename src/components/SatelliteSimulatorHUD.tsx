@@ -435,7 +435,14 @@ export default function SatelliteSimulatorHUD({
               className="flex h-7 items-center gap-1 rounded-lg border border-white/12 bg-white/5 px-2 text-[11px] text-slate-200 hover:bg-white/12 whitespace-nowrap sm:px-2.5"
               title="Cycle Camera View (C)"
             >
-              <Eye className="h-3 w-3" />
+              <Eye className="h-3 w-3 shrink-0" />
+              <span className="sm:hidden">
+                {cameraMode === 'chase'
+                  ? 'Chase'
+                  : cameraMode === 'nadir'
+                  ? 'Nadir'
+                  : 'Horizon'}
+              </span>
               <span className="hidden sm:inline">
                 {cameraMode === 'chase'
                   ? 'Orbiter Chase'
@@ -516,7 +523,7 @@ export default function SatelliteSimulatorHUD({
       </div>
 
       {/* Top-Center Orbital Heading & Ground Target Compass Tape */}
-      <div className="mx-auto mt-2.5 flex w-64 flex-col items-center sm:w-72">
+      <div className="mx-auto mt-1.5 flex w-64 flex-col items-center sm:mt-2.5 sm:w-72">
         <div className="relative h-7 w-full overflow-hidden rounded-lg border border-white/12 bg-[#0B0E17]/75 backdrop-blur-sm">
           {COMPASS_MARKS.map((mark) => {
             const diff = wrapSignedAngleDeg(mark.deg - hud.headingDeg);
@@ -691,7 +698,7 @@ export default function SatelliteSimulatorHUD({
       </div>
 
       {/* Bottom Compact Sub-Satellite Strip */}
-      <div className="absolute inset-x-0 bottom-0 flex h-8 items-center justify-between border-t border-white/12 bg-[#0B0E17]/85 px-3 text-[11px] text-slate-300 backdrop-blur-sm">
+      <div className="absolute inset-x-0 bottom-0 flex h-8 items-center justify-between gap-2 border-t border-white/12 bg-[#0B0E17]/85 px-2.5 text-[10px] text-slate-300 backdrop-blur-sm sm:px-3 sm:text-[11px]">
         <div className="hidden md:flex items-center gap-2 text-slate-400">
           <Compass className="h-3.5 w-3.5 text-sky-400" />
           <span className="font-mono text-slate-200">C</span> Camera
@@ -700,19 +707,31 @@ export default function SatelliteSimulatorHUD({
           <span>·</span>
           <span className="font-mono text-slate-200">Esc</span> Exit
         </div>
-        <div className="flex items-center gap-3 font-mono text-[11px] tabular-nums">
-          <span>ARC {hud.distanceTraveledKm.toFixed(1)} / {hud.totalDistanceKm.toFixed(1)} km</span>
-          <span className="text-white/25">·</span>
-          <span>
-            NADIR {hud.subLat.toFixed(3)}°, {hud.subLon.toFixed(3)}°
+        <div className="flex w-full items-center justify-between gap-2 font-mono tabular-nums md:w-auto md:justify-start md:gap-3">
+          <span className="truncate">
+            <span className="sm:hidden">
+              {hud.distanceTraveledKm.toFixed(0)}/{hud.totalDistanceKm.toFixed(0)} km
+            </span>
+            <span className="hidden sm:inline">
+              ARC {hud.distanceTraveledKm.toFixed(1)} / {hud.totalDistanceKm.toFixed(1)} km
+            </span>
+          </span>
+          <span className="hidden md:inline text-white/25">·</span>
+          <span className="shrink-0">
+            <span className="sm:hidden">
+              {hud.subLat.toFixed(1)}°, {hud.subLon.toFixed(1)}°
+            </span>
+            <span className="hidden sm:inline">
+              NADIR {hud.subLat.toFixed(3)}°, {hud.subLon.toFixed(3)}°
+            </span>
           </span>
         </div>
       </div>
 
       {/* Paused or Arrived Modal */}
       {(status === 'paused' || status === 'arrived') && (
-        <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl border border-white/15 bg-[#0B0E17]/95 p-6 text-center shadow-2xl">
+        <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-black/55 p-3 backdrop-blur-sm sm:p-4">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border border-white/15 bg-[#0B0E17]/95 p-5 text-center shadow-2xl sm:p-6">
             {status === 'paused' && (
               <>
                 <div className="text-[11px] font-medium tracking-wider text-sky-400 uppercase">

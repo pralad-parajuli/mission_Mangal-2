@@ -152,9 +152,7 @@ const NASA_MODEL_MAP: Record<string, string> = {
     'https://raw.githubusercontent.com/nasa/NASA-3D-Resources/master/3D%20Models/Mars%20Odyssey/Mars%20Odyssey.glb',
 };
 
-const modelCache = new Map<string, { data: Buffer; expiresAt: number }>();
-
-app.get('/api/models/:modelKey', async (req, res) => {
+app.get('/api/models/:modelKey', (req, res) => {
   const { modelKey } = req.params;
   const cleanKey = modelKey.replace(/\.glb$/i, '');
   const targetUrl = NASA_MODEL_MAP[cleanKey];
@@ -163,33 +161,9 @@ app.get('/api/models/:modelKey', async (req, res) => {
     return;
   }
 
-  const cached = modelCache.get(cleanKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    res.setHeader('Content-Type', 'model/gltf-binary');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.send(cached.data);
-    return;
-  }
-
-  try {
-    const response = await fetch(targetUrl, {
-      signal: AbortSignal.timeout(25000),
-      headers: { 'User-Agent': 'MarsExplorer-ScientificClient/1.0' },
-    });
-    if (!response.ok) {
-      res.status(response.status).end();
-      return;
-    }
-    const buffer = Buffer.from(await response.arrayBuffer());
-    modelCache.set(cleanKey, { data: buffer, expiresAt: Date.now() + 1000 * 60 * 60 * 6 });
-    res.setHeader('Content-Type', 'model/gltf-binary');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.send(buffer);
-  } catch {
-    res.status(502).end();
-  }
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.redirect(302, targetUrl);
 });
 
 async function fetchCachedJson(url: string, ttlMs = 1000 * 60 * 30) {

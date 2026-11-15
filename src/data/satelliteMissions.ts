@@ -4,6 +4,7 @@ import {
   SatelliteCraftSpec,
   SatellitePassPreset,
 } from '../types/mars';
+import { resolveNasaModelUrl } from '../services/marsMapService';
 
 export const SATELLITE_CRAFTS: Record<SatelliteCraftId, SatelliteCraftSpec> = {
   mro: {
@@ -22,7 +23,7 @@ export const SATELLITE_CRAFTS: Record<SatelliteCraftId, SatelliteCraftSpec> = {
     downlinkPeakMbps: 5.2,
     solarPeakW: 2000,
     accentColor: '#22d3ee',
-    modelUri: '/api/models/mro.glb',
+    modelUri: resolveNasaModelUrl('mro'),
   },
   odyssey: {
     id: 'odyssey',
@@ -40,7 +41,7 @@ export const SATELLITE_CRAFTS: Record<SatelliteCraftId, SatelliteCraftSpec> = {
     downlinkPeakMbps: 2.4,
     solarPeakW: 750,
     accentColor: '#818cf8',
-    modelUri: '/api/models/odyssey.glb',
+    modelUri: resolveNasaModelUrl('odyssey'),
   },
   mgs: {
     id: 'mgs',
@@ -58,7 +59,7 @@ export const SATELLITE_CRAFTS: Record<SatelliteCraftId, SatelliteCraftSpec> = {
     downlinkPeakMbps: 1.8,
     solarPeakW: 980,
     accentColor: '#38bdf8',
-    modelUri: '/api/models/mgs.glb',
+    modelUri: resolveNasaModelUrl('mgs'),
   },
 };
 

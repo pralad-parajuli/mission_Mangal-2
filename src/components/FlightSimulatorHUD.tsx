@@ -323,10 +323,11 @@ export default function FlightSimulatorHUD({
             <button
               type="button"
               onClick={onToggleCamera}
-              className="flex h-7 items-center gap-1 rounded-lg border border-white/12 bg-white/5 px-2 text-[11px] text-[#cbd5e1] hover:bg-white/12 hover:text-white"
+              className="flex h-7 items-center gap-1 rounded-lg border border-white/12 bg-white/5 px-2 text-[11px] text-[#cbd5e1] hover:bg-white/12 hover:text-white whitespace-nowrap"
               title="Toggle Chase / Cockpit View (C)"
             >
-              <Eye className="h-3 w-3" />
+              <Eye className="h-3 w-3 shrink-0" />
+              <span className="sm:hidden">{cameraMode === 'chase' ? 'Chase' : 'Cockpit'}</span>
               <span className="hidden sm:inline">{cameraMode === 'chase' ? 'Chase Cam' : 'Cockpit'}</span>
             </button>
             <button
@@ -427,7 +428,7 @@ export default function FlightSimulatorHUD({
       </div>
 
       {/* Compass Heading Tape (Top Center below Bar) */}
-      <div className="mx-auto mt-2.5 flex w-64 flex-col items-center">
+      <div className="mx-auto mt-1.5 flex w-64 flex-col items-center sm:mt-2.5">
         <div className="relative h-7 w-full overflow-hidden rounded-lg border border-white/12 bg-black/45 backdrop-blur-sm">
           {COMPASS_MARKS.map((mark) => {
             const diff = wrapSignedAngleDeg(mark.deg - hud.headingDeg);
@@ -796,8 +797,8 @@ export default function FlightSimulatorHUD({
 
       {/* Paused / Crashed / Completed Modal */}
       {(status === 'paused' || status === 'crashed' || status === 'completed') && (
-        <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#10141c]/95 p-6 text-center shadow-2xl">
+        <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-black/55 p-3 backdrop-blur-sm sm:p-4">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-white/15 bg-[#10141c]/95 p-5 text-center shadow-2xl sm:p-6">
             {status === 'paused' && (
               <>
                 <div className="text-[11px] font-medium tracking-wider text-sky-400 uppercase">

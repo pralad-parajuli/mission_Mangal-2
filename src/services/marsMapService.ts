@@ -2,6 +2,34 @@ import * as Cesium from 'cesium';
 import { JezeroElevationGrid, MarsLayerConfig } from '../types/mars';
 import { buildJezeroElevationGrid } from '../analysis/jezeroRegionalGrid';
 
+export const NASA_MODEL_URLS: Record<string, string> = {
+  perseverance:
+    'https://raw.githubusercontent.com/nasa/NASA-3D-Resources/master/3D%20Models/Mars%202020%20Perseverance%20Rover/Mars%202020%20Perseverance%20Rover.glb',
+  ingenuity:
+    'https://raw.githubusercontent.com/nasa/NASA-3D-Resources/master/3D%20Models/Ingenuity%20Mars%20Helicopter/Ingenuity%20Mars%20Helicopter.glb',
+  insight:
+    'https://raw.githubusercontent.com/nasa/NASA-3D-Resources/master/3D%20Models/InSight%20Cruise%20Lander/InSight%20Cruise%20Lander%20(arm%20deployed).glb',
+  mer:
+    'https://raw.githubusercontent.com/nasa/NASA-3D-Resources/master/3D%20Models/Mars%20Exploration%20Rover%20-%20Opportunity%20(MER-B)/Mars%20Exploration%20Rover%20-%20Opportunity%20(MER-B).glb',
+  viking:
+    'https://raw.githubusercontent.com/nasa/NASA-3D-Resources/master/3D%20Models/Viking%20Lander/Viking%20Lander.glb',
+  mro:
+    'https://raw.githubusercontent.com/nasa/NASA-3D-Resources/master/3D%20Models/Mars%20Reconnaissance%20Orbiter%20(MRO)%20(C)/Mars%20Reconnaissance%20Orbiter%20(MRO)%20(C).glb',
+  mgs:
+    'https://raw.githubusercontent.com/nasa/NASA-3D-Resources/master/3D%20Models/Mars%20Global%20Surveyor/Mars%20Global%20Surveyor.glb',
+  odyssey:
+    'https://raw.githubusercontent.com/nasa/NASA-3D-Resources/master/3D%20Models/Mars%20Odyssey/Mars%20Odyssey.glb',
+};
+
+export function resolveNasaModelUrl(keyOrUri: string): string {
+  if (/^https?:\/\//i.test(keyOrUri)) return keyOrUri;
+  const cleaned = keyOrUri
+    .replace(/^\/api\/models\//i, '')
+    .replace(/\.glb$/i, '')
+    .toLowerCase();
+  return NASA_MODEL_URLS[cleaned] || `/api/models/${cleaned}.glb`;
+}
+
 export interface TrekSearchItem {
   title: string;
   productLabel: string;

@@ -1550,7 +1550,7 @@ export default function App() {
 
         {/* Floating Left Drawer (Catalog, Missions, Geology, Climate, Route Planner) */}
         {!flightActive && !roverActive && !satelliteActive && leftDrawerOpen && (
-          <div className="absolute top-3 left-3 bottom-10 z-30 flex w-[348px] max-w-[calc(100vw-1.5rem)]">
+          <div className="absolute top-2 left-2 bottom-9 z-30 flex w-[348px] max-w-[calc(100vw-1rem)] sm:top-3 sm:left-3 sm:bottom-10 sm:max-w-[calc(100vw-1.5rem)]">
             <LeftSidebar
               activeTab={leftTab}
               onTabChange={setLeftTab}
@@ -1624,7 +1624,7 @@ export default function App() {
 
         {/* Floating Right Knowledge Card & Data Legend Stack (Collision-free) */}
         {!flightActive && !roverActive && !satelliteActive && (showLegend || rightDrawerOpen) && (
-          <div className="pointer-events-none absolute top-3 right-3 z-30 flex max-h-[calc(100dvh-6.25rem)] max-w-[calc(100vw-1.5rem)] items-start gap-2.5">
+          <div className="pointer-events-none absolute top-2 right-2 z-30 flex max-h-[calc(100dvh-5rem)] max-w-[calc(100vw-1rem)] items-start gap-2.5 sm:top-3 sm:right-3 sm:max-h-[calc(100dvh-6.25rem)] sm:max-w-[calc(100vw-1.5rem)]">
             {showLegend && (
               <div className={rightDrawerOpen ? 'hidden md:block' : 'block'}>
                 <DataLegend
@@ -1635,7 +1635,7 @@ export default function App() {
               </div>
             )}
             {rightDrawerOpen && (
-              <div className="pointer-events-auto flex h-[min(640px,calc(100dvh-11rem))] w-[336px] max-w-[calc(100vw-1.5rem)]">
+              <div className="pointer-events-auto flex h-[min(640px,calc(100dvh-7.5rem))] w-[336px] max-w-[calc(100vw-1rem)] sm:h-[min(640px,calc(100dvh-10rem))] sm:max-w-[calc(100vw-1.5rem)]">
                 <RightSidebar
                   selectedCoord={selectedCoord}
                   selectedLocation={selectedLocation}
