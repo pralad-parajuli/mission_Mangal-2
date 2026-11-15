@@ -1,5 +1,6 @@
 import * as Cesium from 'cesium';
 import { JezeroElevationGrid, MarsLayerConfig } from '../types/mars';
+import { buildJezeroElevationGrid } from '../analysis/jezeroRegionalGrid';
 
 export interface TrekSearchItem {
   title: string;
@@ -14,11 +15,18 @@ export interface TrekSearchItem {
 const trekSearchCache = new Map<string, { value: { items: TrekSearchItem[]; source: string }; expiresAt: number }>();
 
 export async function fetchJezeroElevationGrid(): Promise<JezeroElevationGrid> {
-  const res = await fetch('/api/elevation/jezero-grid');
-  if (!res.ok) {
-    throw new Error(`Failed to fetch Jezero elevation grid (HTTP ${res.status})`);
+  try {
+    const res = await fetch('/api/elevation/jezero-grid');
+    if (res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        return (await res.json()) as JezeroElevationGrid;
+      }
+    }
+  } catch {
+    // Fallback to client-side regional model when static-only hosting has no /api server
   }
-  return res.json();
+  return buildJezeroElevationGrid([], 'mola_regional_only');
 }
 
 export async function searchMarsTrekNomenclature(
@@ -47,7 +55,8 @@ export async function searchMarsTrekNomenclature(
 export function createMarsImageryProvider(
   layer: MarsLayerConfig,
   ellipsoid: Cesium.Ellipsoid,
-  tilingScheme: Cesium.GeographicTilingScheme
+  tilingScheme: Cesium.GeographicTilingScheme,
+  directTrekFallback = false
 ): Cesium.ImageryProvider | null {
   if (layer.kind !== 'trek_wmts' && layer.kind !== 'usgs_wms') return null;
 
@@ -62,8 +71,11 @@ export function createMarsImageryProvider(
 
   if (layer.kind === 'trek_wmts' && layer.trekLayerId) {
     const ext = layer.trekFormat || 'jpg';
+    const url = directTrekFallback
+      ? `https://trek.nasa.gov/tiles/Mars/EQ/${layer.trekLayerId}/1.0.0/default/default028mm/{z}/{y}/{x}.${ext}`
+      : `/api/tiles/trek/${layer.trekLayerId}/{z}/{y}/{x}.${ext}`;
     return new Cesium.UrlTemplateImageryProvider({
-      url: `/api/tiles/trek/${layer.trekLayerId}/{z}/{y}/{x}.${ext}`,
+      url,
       tilingScheme,
       ellipsoid,
       rectangle,
